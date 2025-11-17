@@ -50,6 +50,27 @@ PIPELINE_EVAL_MAP = {
 MODEL_EVAL_MAP.update(PIPELINE_EVAL_MAP)
 
 # ===========================
+# TRAINING TIMES (in minutes)
+# ===========================
+# Update these values with actual training times from your experiments
+TRAINING_TIMES = {
+    # Classification models
+    "YOLOv8s Clasificación": 120,  # Example: 2 hours
+    "ConvNeXt Clasificación": 180,  # Example: 3 hours
+    "ViT Clasificación": 200,  # Example: 3.33 hours
+    # Detection models
+    "YOLOv8s Detección": 150,  # Example: 2.5 hours
+    "RetinaNet Detección": 453,  # ~7.55 hours (from notebook duration)
+    "Faster R-CNN Detección": 400,  # Example: ~6.67 hours
+    # Full pipelines (sum of detection + classification training times)
+    "YOLO → YOLO-CLS": 270,  # YOLO detection + YOLO classification
+    "RetinaNet → ConvNeXt": 633,  # RetinaNet + ConvNeXt
+    "RetinaNet → ViT": 653,  # RetinaNet + ViT
+    "FRCNN → ConvNeXt": 580,  # FRCNN + ConvNeXt
+    "FRCNN → ViT": 600,  # FRCNN + ViT
+}
+
+# ===========================
 # IMPORTS DE MODELOS
 # ===========================
 from models_classification import (CLASES, cargar_modelo_clasificacion,
@@ -522,11 +543,13 @@ def comparar_modelos_clasificacion(dfs):
             y_true, y_pred, labels=CLASES, average="macro", zero_division=0
         )
         
+        training_time = TRAINING_TIMES.get(nombre_modelo, None)
         resultados.append({
             "Modelo": nombre_modelo,
             "F1-Macro": f1_macro,
             "Accuracy": acc,
             "Recall": rec_macro,
+            "Tiempo Entrenamiento (min)": training_time,
         })
     
     if not resultados:
@@ -536,14 +559,20 @@ def comparar_modelos_clasificacion(dfs):
     df_comparacion = pd.DataFrame(resultados)
     
     # Mostrar tabla comparativa
-    st.dataframe(
-        df_comparacion.style.format({
-            "F1-Macro": "{:.4f}",
-            "Accuracy": "{:.4f}",
-            "Recall": "{:.4f}",
-        }).highlight_max(axis=0, subset=["F1-Macro", "Accuracy", "Recall"]),
-        use_container_width=True
-    )
+    format_dict = {
+        "F1-Macro": "{:.4f}",
+        "Accuracy": "{:.4f}",
+        "Recall": "{:.4f}",
+    }
+    if "Tiempo Entrenamiento (min)" in df_comparacion.columns:
+        format_dict["Tiempo Entrenamiento (min)"] = "{:.1f}"
+    
+    highlight_subset = ["F1-Macro", "Accuracy", "Recall"]
+    style_obj = df_comparacion.style.format(format_dict).highlight_max(axis=0, subset=highlight_subset)
+    if "Tiempo Entrenamiento (min)" in df_comparacion.columns:
+        style_obj = style_obj.highlight_min(axis=0, subset=["Tiempo Entrenamiento (min)"])
+    
+    st.dataframe(style_obj, use_container_width=True)
     
     # Gráfico de barras comparativo
     st.markdown("---")
@@ -568,14 +597,89 @@ def comparar_modelos_clasificacion(dfs):
             "F1-Macro": "#1f77b4",
             "Accuracy": "#ff7f0e",
             "Recall": "#2ca02c"
-        }
+        },
+        text="Valor"
     )
+    fig.update_traces(texttemplate="%{text:.3f}", textposition="outside")
     fig.update_layout(
         xaxis=dict(tickangle=45),
+        yaxis=dict(range=[0, 1.05]),
         height=500,
-        template="plotly_white"
+        template="plotly_white",
+        showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
     st.plotly_chart(fig, use_container_width=True)
+    
+    # Heatmap de comparación
+    st.markdown("---")
+    st.subheader("Mapa de Calor Comparativo")
+    
+    df_heatmap = df_comparacion.set_index("Modelo")[["F1-Macro", "Accuracy", "Recall"]]
+    fig_heatmap = px.imshow(
+        df_heatmap.T,
+        labels=dict(x="Modelo", y="Métrica", color="Valor"),
+        color_continuous_scale="Blues",
+        text_auto=".3f",
+        aspect="auto"
+    )
+    fig_heatmap.update_layout(
+        title="Mapa de Calor: Comparación de Métricas",
+        height=300,
+        template="plotly_white"
+    )
+    st.plotly_chart(fig_heatmap, use_container_width=True)
+    
+    # Gráfico de tiempo de entrenamiento vs rendimiento
+    if "Tiempo Entrenamiento (min)" in df_comparacion.columns:
+        st.markdown("---")
+        st.subheader("Tiempo de Entrenamiento vs Rendimiento")
+        
+        # Crear gráfico de dispersión con tamaño basado en F1-Macro
+        fig_scatter = px.scatter(
+            df_comparacion,
+            x="Tiempo Entrenamiento (min)",
+            y="F1-Macro",
+            size="Accuracy",
+            color="Modelo",
+            hover_data=["Recall"],
+            title="Relación entre Tiempo de Entrenamiento y Rendimiento",
+            labels={
+                "Tiempo Entrenamiento (min)": "Tiempo de Entrenamiento (minutos)",
+                "F1-Macro": "F1-Macro",
+                "Accuracy": "Accuracy",
+            },
+            template="plotly_white"
+        )
+        fig_scatter.update_layout(
+            height=500,
+            showlegend=True,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+        st.plotly_chart(fig_scatter, use_container_width=True)
+        
+        # Gráfico de barras para tiempo de entrenamiento
+        st.markdown("---")
+        st.subheader("Tiempo de Entrenamiento por Modelo")
+        
+        fig_time = px.bar(
+            df_comparacion,
+            x="Modelo",
+            y="Tiempo Entrenamiento (min)",
+            title="Tiempo de Entrenamiento por Modelo",
+            labels={"Tiempo Entrenamiento (min)": "Tiempo (minutos)", "Modelo": "Modelo"},
+            color="Tiempo Entrenamiento (min)",
+            color_continuous_scale="Reds",
+            text="Tiempo Entrenamiento (min)"
+        )
+        fig_time.update_traces(texttemplate="%{text:.1f} min", textposition="outside")
+        fig_time.update_layout(
+            xaxis=dict(tickangle=45),
+            height=400,
+            template="plotly_white",
+            showlegend=False
+        )
+        st.plotly_chart(fig_time, use_container_width=True)
 
 
 def comparar_modelos_deteccion(dfs):
@@ -606,9 +710,11 @@ def comparar_modelos_deteccion(dfs):
         # Métricas globales
         mean_iou = df_model["iou"].mean()
         
+        training_time = TRAINING_TIMES.get(nombre_modelo, None)
         resultados.append({
             "Modelo": nombre_modelo,
             "IoU Promedio": mean_iou,
+            "Tiempo Entrenamiento (min)": training_time,
         })
         
         # Métricas por clase
@@ -632,10 +738,12 @@ def comparar_modelos_deteccion(dfs):
     
     # Tabla comparativa global
     df_comparacion = pd.DataFrame(resultados)
+    format_dict = {"IoU Promedio": "{:.4f}"}
+    if "Tiempo Entrenamiento (min)" in df_comparacion.columns:
+        format_dict["Tiempo Entrenamiento (min)"] = "{:.1f}"
+    
     st.dataframe(
-        df_comparacion.style.format({
-            "IoU Promedio": "{:.4f}",
-        }).highlight_max(axis=0, subset=["IoU Promedio"]),
+        df_comparacion.style.format(format_dict).highlight_max(axis=0, subset=["IoU Promedio"]).highlight_min(axis=0, subset=["Tiempo Entrenamiento (min)"]),
         use_container_width=True
     )
     
@@ -650,12 +758,16 @@ def comparar_modelos_deteccion(dfs):
         title="Comparación de IoU Promedio",
         labels={"IoU Promedio": "IoU Promedio", "Modelo": "Modelo"},
         color="IoU Promedio",
-        color_continuous_scale="Blues"
+        color_continuous_scale="Blues",
+        text="IoU Promedio"
     )
+    fig_global.update_traces(texttemplate="%{text:.3f}", textposition="outside")
     fig_global.update_layout(
         xaxis=dict(tickangle=45),
+        yaxis=dict(range=[0, 1.05]),
         height=400,
-        template="plotly_white"
+        template="plotly_white",
+        showlegend=False
     )
     st.plotly_chart(fig_global, use_container_width=True)
     
@@ -673,13 +785,37 @@ def comparar_modelos_deteccion(dfs):
         barmode="group",
         title="Comparación de IoU por Clase",
         labels={"IoU": "IoU", "Clase": "Clase"},
+        text="IoU"
     )
+    fig_clases.update_traces(texttemplate="%{text:.3f}", textposition="outside")
     fig_clases.update_layout(
         xaxis=dict(tickangle=45),
+        yaxis=dict(range=[0, 1.05]),
         height=500,
-        template="plotly_white"
+        template="plotly_white",
+        showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
     st.plotly_chart(fig_clases, use_container_width=True)
+    
+    # Heatmap de IoU por clase
+    st.markdown("---")
+    st.subheader("Mapa de Calor: IoU por Clase")
+    
+    df_heatmap_iou = df_por_clase.pivot(index="Clase", columns="Modelo", values="IoU")
+    fig_heatmap_iou = px.imshow(
+        df_heatmap_iou,
+        labels=dict(x="Modelo", y="Clase", color="IoU"),
+        color_continuous_scale="Blues",
+        text_auto=".3f",
+        aspect="auto"
+    )
+    fig_heatmap_iou.update_layout(
+        title="Mapa de Calor: IoU por Clase y Modelo",
+        height=400,
+        template="plotly_white"
+    )
+    st.plotly_chart(fig_heatmap_iou, use_container_width=True)
     
     # Tabla detallada por clase
     st.markdown("---")
@@ -690,6 +826,55 @@ def comparar_modelos_deteccion(dfs):
         df_pivot.style.format("{:.4f}").highlight_max(axis=1),
         use_container_width=True
     )
+    
+    # Gráfico de tiempo de entrenamiento vs IoU
+    if "Tiempo Entrenamiento (min)" in df_comparacion.columns:
+        st.markdown("---")
+        st.subheader("Tiempo de Entrenamiento vs IoU Promedio")
+        
+        fig_scatter = px.scatter(
+            df_comparacion,
+            x="Tiempo Entrenamiento (min)",
+            y="IoU Promedio",
+            color="Modelo",
+            size=[10] * len(df_comparacion),
+            hover_data=["Modelo"],
+            title="Relación entre Tiempo de Entrenamiento y IoU Promedio",
+            labels={
+                "Tiempo Entrenamiento (min)": "Tiempo de Entrenamiento (minutos)",
+                "IoU Promedio": "IoU Promedio",
+            },
+            template="plotly_white"
+        )
+        fig_scatter.update_layout(
+            height=500,
+            showlegend=True,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+        st.plotly_chart(fig_scatter, use_container_width=True)
+        
+        # Gráfico de barras para tiempo de entrenamiento
+        st.markdown("---")
+        st.subheader("Tiempo de Entrenamiento por Modelo")
+        
+        fig_time = px.bar(
+            df_comparacion,
+            x="Modelo",
+            y="Tiempo Entrenamiento (min)",
+            title="Tiempo de Entrenamiento por Modelo",
+            labels={"Tiempo Entrenamiento (min)": "Tiempo (minutos)", "Modelo": "Modelo"},
+            color="Tiempo Entrenamiento (min)",
+            color_continuous_scale="Reds",
+            text="Tiempo Entrenamiento (min)"
+        )
+        fig_time.update_traces(texttemplate="%{text:.1f} min", textposition="outside")
+        fig_time.update_layout(
+            xaxis=dict(tickangle=45),
+            height=400,
+            template="plotly_white",
+            showlegend=False
+        )
+        st.plotly_chart(fig_time, use_container_width=True)
 
 
 def comparar_pipelines_completos(dfs):
@@ -729,11 +914,13 @@ def comparar_pipelines_completos(dfs):
             y_true, y_pred, labels=CLASES, average="macro", zero_division=0
         )
         
+        training_time = TRAINING_TIMES.get(nombre_pipeline, None)
         resultados.append({
             "Pipeline": nombre_pipeline,
             "F1-Macro": f1_macro,
             "Accuracy": acc,
             "Recall": rec_macro,
+            "Tiempo Entrenamiento (min)": training_time,
         })
     
     if not resultados:
@@ -743,14 +930,20 @@ def comparar_pipelines_completos(dfs):
     df_comparacion = pd.DataFrame(resultados)
     
     # Mostrar tabla comparativa
-    st.dataframe(
-        df_comparacion.style.format({
-            "F1-Macro": "{:.4f}",
-            "Accuracy": "{:.4f}",
-            "Recall": "{:.4f}",
-        }).highlight_max(axis=0, subset=["F1-Macro", "Accuracy", "Recall"]),
-        use_container_width=True
-    )
+    format_dict = {
+        "F1-Macro": "{:.4f}",
+        "Accuracy": "{:.4f}",
+        "Recall": "{:.4f}",
+    }
+    if "Tiempo Entrenamiento (min)" in df_comparacion.columns:
+        format_dict["Tiempo Entrenamiento (min)"] = "{:.1f}"
+    
+    highlight_subset = ["F1-Macro", "Accuracy", "Recall"]
+    style_obj = df_comparacion.style.format(format_dict).highlight_max(axis=0, subset=highlight_subset)
+    if "Tiempo Entrenamiento (min)" in df_comparacion.columns:
+        style_obj = style_obj.highlight_min(axis=0, subset=["Tiempo Entrenamiento (min)"])
+    
+    st.dataframe(style_obj, use_container_width=True)
     
     # Gráfico de barras comparativo
     st.markdown("---")
@@ -775,14 +968,89 @@ def comparar_pipelines_completos(dfs):
             "F1-Macro": "#1f77b4",
             "Accuracy": "#ff7f0e",
             "Recall": "#2ca02c"
-        }
+        },
+        text="Valor"
     )
+    fig.update_traces(texttemplate="%{text:.3f}", textposition="outside")
     fig.update_layout(
         xaxis=dict(tickangle=45),
+        yaxis=dict(range=[0, 1.05]),
         height=500,
-        template="plotly_white"
+        template="plotly_white",
+        showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
     st.plotly_chart(fig, use_container_width=True)
+    
+    # Heatmap de comparación
+    st.markdown("---")
+    st.subheader("Mapa de Calor Comparativo")
+    
+    df_heatmap = df_comparacion.set_index("Pipeline")[["F1-Macro", "Accuracy", "Recall"]]
+    fig_heatmap = px.imshow(
+        df_heatmap.T,
+        labels=dict(x="Pipeline", y="Métrica", color="Valor"),
+        color_continuous_scale="Blues",
+        text_auto=".3f",
+        aspect="auto"
+    )
+    fig_heatmap.update_layout(
+        title="Mapa de Calor: Comparación de Métricas de Pipelines",
+        height=300,
+        template="plotly_white"
+    )
+    st.plotly_chart(fig_heatmap, use_container_width=True)
+    
+    # Gráfico de tiempo de entrenamiento vs rendimiento
+    if "Tiempo Entrenamiento (min)" in df_comparacion.columns:
+        st.markdown("---")
+        st.subheader("Tiempo de Entrenamiento vs Rendimiento")
+        
+        # Crear gráfico de dispersión con tamaño basado en F1-Macro
+        fig_scatter = px.scatter(
+            df_comparacion,
+            x="Tiempo Entrenamiento (min)",
+            y="F1-Macro",
+            size="Accuracy",
+            color="Pipeline",
+            hover_data=["Recall"],
+            title="Relación entre Tiempo de Entrenamiento y Rendimiento",
+            labels={
+                "Tiempo Entrenamiento (min)": "Tiempo de Entrenamiento (minutos)",
+                "F1-Macro": "F1-Macro",
+                "Accuracy": "Accuracy",
+            },
+            template="plotly_white"
+        )
+        fig_scatter.update_layout(
+            height=500,
+            showlegend=True,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+        st.plotly_chart(fig_scatter, use_container_width=True)
+        
+        # Gráfico de barras para tiempo de entrenamiento
+        st.markdown("---")
+        st.subheader("Tiempo de Entrenamiento por Pipeline")
+        
+        fig_time = px.bar(
+            df_comparacion,
+            x="Pipeline",
+            y="Tiempo Entrenamiento (min)",
+            title="Tiempo de Entrenamiento por Pipeline",
+            labels={"Tiempo Entrenamiento (min)": "Tiempo (minutos)", "Pipeline": "Pipeline"},
+            color="Tiempo Entrenamiento (min)",
+            color_continuous_scale="Reds",
+            text="Tiempo Entrenamiento (min)"
+        )
+        fig_time.update_traces(texttemplate="%{text:.1f} min", textposition="outside")
+        fig_time.update_layout(
+            xaxis=dict(tickangle=45),
+            height=400,
+            template="plotly_white",
+            showlegend=False
+        )
+        st.plotly_chart(fig_time, use_container_width=True)
 
 
 # ============================================================
