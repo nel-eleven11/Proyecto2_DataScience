@@ -99,7 +99,8 @@ def bootstrap_dataset() -> str:
 
     st.info("Descargando dataset de Kaggle (primer uso)...")
 
-    dataset_path = kagglehub.dataset_download("vishakkbhat/mosquito-data")
+    #dataset_path = kagglehub.dataset_download("vishakkbhat/mosquito-data")
+    dataset_path = Path("dataset")
     root = Path(dataset_path)
 
     image_files = (
@@ -488,6 +489,303 @@ def configurar_pagina():
 
 
 # ============================================================
+# COMPARACIÓN DE MODELOS
+# ============================================================
+def comparar_modelos_clasificacion(dfs):
+    """Compara modelos de clasificación usando F1-macro, accuracy y recall."""
+    df_class = dfs.get("classification")
+    
+    if df_class is None:
+        st.warning("⚠️ No existe classification_results.csv")
+        return
+    
+    st.subheader("Comparación de Modelos de Clasificación")
+    
+    modelos = {
+        "YOLOv8s Clasificación": "yolo_pred",
+        "ConvNeXt Clasificación": "convnext_pred",
+        "ViT Clasificación": "vit_pred",
+    }
+    
+    resultados = []
+    y_true = df_class["true_label"].astype(str).values
+    
+    for nombre_modelo, col_pred in modelos.items():
+        if col_pred not in df_class.columns:
+            continue
+        
+        y_pred = df_class[col_pred].astype(str).values
+        
+        # Calcular métricas
+        acc = (y_true == y_pred).mean()
+        _, rec_macro, f1_macro, _ = precision_recall_fscore_support(
+            y_true, y_pred, labels=CLASES, average="macro", zero_division=0
+        )
+        
+        resultados.append({
+            "Modelo": nombre_modelo,
+            "F1-Macro": f1_macro,
+            "Accuracy": acc,
+            "Recall": rec_macro,
+        })
+    
+    if not resultados:
+        st.error("No hay datos disponibles para comparar.")
+        return
+    
+    df_comparacion = pd.DataFrame(resultados)
+    
+    # Mostrar tabla comparativa
+    st.dataframe(
+        df_comparacion.style.format({
+            "F1-Macro": "{:.4f}",
+            "Accuracy": "{:.4f}",
+            "Recall": "{:.4f}",
+        }).highlight_max(axis=0, subset=["F1-Macro", "Accuracy", "Recall"]),
+        use_container_width=True
+    )
+    
+    # Gráfico de barras comparativo
+    st.markdown("---")
+    st.subheader("Visualización Comparativa")
+    
+    df_melted = df_comparacion.melt(
+        id_vars=["Modelo"],
+        value_vars=["F1-Macro", "Accuracy", "Recall"],
+        var_name="Métrica",
+        value_name="Valor"
+    )
+    
+    fig = px.bar(
+        df_melted,
+        x="Modelo",
+        y="Valor",
+        color="Métrica",
+        barmode="group",
+        title="Comparación de Métricas de Clasificación",
+        labels={"Valor": "Valor de la Métrica", "Modelo": "Modelo"},
+        color_discrete_map={
+            "F1-Macro": "#1f77b4",
+            "Accuracy": "#ff7f0e",
+            "Recall": "#2ca02c"
+        }
+    )
+    fig.update_layout(
+        xaxis=dict(tickangle=45),
+        height=500,
+        template="plotly_white"
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def comparar_modelos_deteccion(dfs):
+    """Compara modelos de detección usando IoU e IoU por clase."""
+    df_det = dfs.get("detection")
+    
+    if df_det is None:
+        st.warning("⚠️ No existe detection_results.csv")
+        return
+    
+    st.subheader("Comparación de Modelos de Detección")
+    
+    modelos_map = {
+        "YOLOv8s Detección": "YOLO",
+        "RetinaNet Detección": "RetinaNet",
+        "Faster R-CNN Detección": "FRCNN",
+    }
+    
+    resultados = []
+    resultados_por_clase = []
+    
+    for nombre_modelo, model_key in modelos_map.items():
+        df_model = df_det[df_det["det_model"] == model_key].copy()
+        
+        if df_model.empty:
+            continue
+        
+        # Métricas globales
+        mean_iou = df_model["iou"].mean()
+        
+        resultados.append({
+            "Modelo": nombre_modelo,
+            "IoU Promedio": mean_iou,
+        })
+        
+        # Métricas por clase
+        per_class_iou = (
+            df_model.groupby("true_label")["iou"]
+            .mean()
+            .reindex(CLASES)
+            .fillna(0)
+        )
+        
+        for clase in CLASES:
+            resultados_por_clase.append({
+                "Modelo": nombre_modelo,
+                "Clase": clase,
+                "IoU": per_class_iou.loc[clase],
+            })
+    
+    if not resultados:
+        st.error("No hay datos disponibles para comparar.")
+        return
+    
+    # Tabla comparativa global
+    df_comparacion = pd.DataFrame(resultados)
+    st.dataframe(
+        df_comparacion.style.format({
+            "IoU Promedio": "{:.4f}",
+        }).highlight_max(axis=0, subset=["IoU Promedio"]),
+        use_container_width=True
+    )
+    
+    # Gráfico de barras para IoU promedio
+    st.markdown("---")
+    st.subheader("IoU Promedio por Modelo")
+    
+    fig_global = px.bar(
+        df_comparacion,
+        x="Modelo",
+        y="IoU Promedio",
+        title="Comparación de IoU Promedio",
+        labels={"IoU Promedio": "IoU Promedio", "Modelo": "Modelo"},
+        color="IoU Promedio",
+        color_continuous_scale="Blues"
+    )
+    fig_global.update_layout(
+        xaxis=dict(tickangle=45),
+        height=400,
+        template="plotly_white"
+    )
+    st.plotly_chart(fig_global, use_container_width=True)
+    
+    # Tabla y gráfico por clase
+    st.markdown("---")
+    st.subheader("IoU por Clase")
+    
+    df_por_clase = pd.DataFrame(resultados_por_clase)
+    
+    fig_clases = px.bar(
+        df_por_clase,
+        x="Clase",
+        y="IoU",
+        color="Modelo",
+        barmode="group",
+        title="Comparación de IoU por Clase",
+        labels={"IoU": "IoU", "Clase": "Clase"},
+    )
+    fig_clases.update_layout(
+        xaxis=dict(tickangle=45),
+        height=500,
+        template="plotly_white"
+    )
+    st.plotly_chart(fig_clases, use_container_width=True)
+    
+    # Tabla detallada por clase
+    st.markdown("---")
+    st.subheader("Tabla Detallada: IoU por Clase")
+    
+    df_pivot = df_por_clase.pivot(index="Clase", columns="Modelo", values="IoU")
+    st.dataframe(
+        df_pivot.style.format("{:.4f}").highlight_max(axis=1),
+        use_container_width=True
+    )
+
+
+def comparar_pipelines_completos(dfs):
+    """Compara pipelines completos usando F1-macro, accuracy y recall."""
+    df_full = dfs.get("full")
+    
+    if df_full is None:
+        st.warning("⚠️ No existe full_eval_results.csv")
+        return
+    
+    st.subheader("Comparación de Pipelines Completos")
+    
+    pipelines = {
+        "YOLO → YOLO-CLS": ("YOLO", "YOLO-CLS"),
+        "RetinaNet → ConvNeXt": ("RetinaNet", "ConvNeXt"),
+        "RetinaNet → ViT": ("RetinaNet", "ViT"),
+        "FRCNN → ConvNeXt": ("FRCNN", "ConvNeXt"),
+        "FRCNN → ViT": ("FRCNN", "ViT"),
+    }
+    
+    resultados = []
+    
+    for nombre_pipeline, (det_key, cls_key) in pipelines.items():
+        df_pipeline = df_full[
+            (df_full["det_model"] == det_key) & (df_full["cls_model"] == cls_key)
+        ].copy()
+        
+        if df_pipeline.empty:
+            continue
+        
+        y_true = df_pipeline["true_label"].astype(str).values
+        y_pred = df_pipeline["pred_label"].astype(str).values
+        
+        # Calcular métricas
+        acc = (y_true == y_pred).mean()
+        _, rec_macro, f1_macro, _ = precision_recall_fscore_support(
+            y_true, y_pred, labels=CLASES, average="macro", zero_division=0
+        )
+        
+        resultados.append({
+            "Pipeline": nombre_pipeline,
+            "F1-Macro": f1_macro,
+            "Accuracy": acc,
+            "Recall": rec_macro,
+        })
+    
+    if not resultados:
+        st.error("No hay datos disponibles para comparar.")
+        return
+    
+    df_comparacion = pd.DataFrame(resultados)
+    
+    # Mostrar tabla comparativa
+    st.dataframe(
+        df_comparacion.style.format({
+            "F1-Macro": "{:.4f}",
+            "Accuracy": "{:.4f}",
+            "Recall": "{:.4f}",
+        }).highlight_max(axis=0, subset=["F1-Macro", "Accuracy", "Recall"]),
+        use_container_width=True
+    )
+    
+    # Gráfico de barras comparativo
+    st.markdown("---")
+    st.subheader("Visualización Comparativa")
+    
+    df_melted = df_comparacion.melt(
+        id_vars=["Pipeline"],
+        value_vars=["F1-Macro", "Accuracy", "Recall"],
+        var_name="Métrica",
+        value_name="Valor"
+    )
+    
+    fig = px.bar(
+        df_melted,
+        x="Pipeline",
+        y="Valor",
+        color="Métrica",
+        barmode="group",
+        title="Comparación de Métricas de Pipelines Completos",
+        labels={"Valor": "Valor de la Métrica", "Pipeline": "Pipeline"},
+        color_discrete_map={
+            "F1-Macro": "#1f77b4",
+            "Accuracy": "#ff7f0e",
+            "Recall": "#2ca02c"
+        }
+    )
+    fig.update_layout(
+        xaxis=dict(tickangle=45),
+        height=500,
+        template="plotly_white"
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+
+# ============================================================
 # SIDEBAR
 # ============================================================
 
@@ -497,7 +795,7 @@ def sidebar_seleccion():
 
     vista = st.sidebar.radio(
         "Vista",
-        ["Modelos de clasificación", "Modelos de detección", "Pipelines completos"],
+        ["Modelos de clasificación", "Modelos de detección", "Pipelines completos", "Comparar Modelos"],
     )
 
     if vista == "Modelos de clasificación":
@@ -506,6 +804,9 @@ def sidebar_seleccion():
             "ConvNeXt Clasificación",
             "ViT Clasificación",
         ]
+        modelo = st.sidebar.selectbox("Modelo", modelos_disp)
+        modo = "Imágenes sueltas"
+        umbral = 0.5  # HARD CODED
 
     elif vista == "Modelos de detección":
         modelos_disp = [
@@ -513,8 +814,11 @@ def sidebar_seleccion():
             "RetinaNet Detección",
             "Faster R-CNN Detección",
         ]
+        modelo = st.sidebar.selectbox("Modelo", modelos_disp)
+        modo = "Imágenes sueltas"
+        umbral = 0.5  # HARD CODED
 
-    else:  # Pipelines completos
+    elif vista == "Pipelines completos":
         modelos_disp = [
             "YOLO → YOLO-CLS",
             "RetinaNet → ConvNeXt",
@@ -522,11 +826,14 @@ def sidebar_seleccion():
             "FRCNN → ConvNeXt",
             "FRCNN → ViT",
         ]
+        modelo = st.sidebar.selectbox("Modelo", modelos_disp)
+        modo = "Imágenes sueltas"
+        umbral = 0.5  # HARD CODED
 
-    modelo = st.sidebar.selectbox("Modelo", modelos_disp)
-    modo = "Imágenes sueltas"
-
-    umbral = 0.5  # HARD CODED
+    else:  # Comparar Modelos
+        modelo = None
+        modo = None
+        umbral = None
 
     return vista, modelo, modo, umbral
 
@@ -547,7 +854,7 @@ def vista_clasificacion(modelo_nombre, modo_entrada, umbral_score, dfs):
     if modo_entrada == "Imágenes sueltas":
         subir_imagenes_clasificacion(modelo, device, tipo, transform)
     else:
-        subir_csv_clasificacion(modelo, device, tipo, transform)
+        st.info("CSV classification batch — not implemented fully yet.")
 
 
 # ============================================================
@@ -566,7 +873,7 @@ def vista_deteccion(modelo_nombre, modo_entrada, umbral_score, dfs):
     if modo_entrada == "Imágenes sueltas":
         subir_imagenes_deteccion(modelo, device, tipo, transform, umbral_score)
     else:
-        subir_csv_deteccion(modelo, device, tipo, transform, umbral_score)
+        st.info("CSV detection batch — not implemented fully yet.")
 
 
 # ============================================================
@@ -626,8 +933,25 @@ def main():
     elif vista == "Modelos de detección":
         vista_deteccion(modelo, modo, umbral, dfs)
 
-    else:
+    elif vista == "Pipelines completos":
         vista_pipeline(modelo, modo, umbral, dfs)
+    
+    else:  # Comparar Modelos
+        st.header("Comparación de Modelos")
+        st.markdown("Compara el rendimiento de diferentes modelos usando métricas estándar.")
+        
+        tipo_comparacion = st.radio(
+            "Tipo de comparación",
+            ["Modelos de Clasificación", "Modelos de Detección", "Pipelines Completos"],
+            horizontal=True
+        )
+        
+        if tipo_comparacion == "Modelos de Clasificación":
+            comparar_modelos_clasificacion(dfs)
+        elif tipo_comparacion == "Modelos de Detección":
+            comparar_modelos_deteccion(dfs)
+        else:  # Pipelines Completos
+            comparar_pipelines_completos(dfs)
 
 
 if __name__ == "__main__":
