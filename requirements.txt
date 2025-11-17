@@ -6,3 +6,8 @@ lxml
 pathlib
 seaborn
 Pillow
+ultralytics
+timm
+torch 
+torchvision 
+scikit-learn
