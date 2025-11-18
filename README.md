@@ -1,7 +1,7 @@
 # Proyecto 2. Mosquito Alert
 
 - Análisis Exploratorio e Implementación de Modelos:
-  - **Nota:** Realizamos cambios a los modelos entre la Fase 2 y Fase 3 (más que todo entrenamiento más robusto usando el compute de Kaggle), en el subfolder se encuentran todos los Jupyter por temas de documentación. También corrimos los Notebooks dentro de Kaggle, por lo que se pueden ver aquí o dentro de los links de kaggle adjuntados para la Fase 3.
+  - **Nota:** Realizamos cambios a los modelos entre la Fase 2 y Fase 3 (más que todo entrenamiento más robusto usando el compute de Kaggle), en el subfolder se encuentran todos los Jupyter por temas de documentación. También corrimos los Notebooks dentro de Kaggle, por lo que se pueden ver aquí o dentro de los links de kaggle adjuntados para la Fase 3. Adicionalmente, los notebooks descargados de Kaggle **pueden no cargar dentro de GitHub** por lo cual sugerimos utilizar nbviewer.org y pegar el link del repositorio para ver sus contenidos, o simplemente visitar los links de Kaggle.
   - models_pipeline/
     - Fase 2
       - Fase 2.ipynb
