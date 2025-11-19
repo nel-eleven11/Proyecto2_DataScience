@@ -21,7 +21,7 @@ La ubicación de todos los archivos correspondientes se encuentra a continuació
   - informes/
   -   Fase 1.pdf y [Link de Office](https://uvggt-my.sharepoint.com/:w:/g/personal/gar22434_uvg_edu_gt/IQCjrjGDKbD3QqQHbmXPjFVLAcKjOH0JfZWrotX-aXAUloE?e=pHkpDP)
   -   Fase 2.pdf y [Link de office](https://uvggt-my.sharepoint.com/:w:/g/personal/pue22296_uvg_edu_gt/IQC4PtVyOwyCR6vKT2DpHu7tAbRmN9hWwY-7KbBrhZPGSP4?e=4ABzGH)
-  -   Fase 3.pdf y [Link de Office](https://uvggt-my.sharepoint.com/:w:/g/personal/mer201105_uvg_edu_gt/IQDSZsMa1rMASprM6y7TZxgHAcgrkBnM1WvXOnbn-KkbKKY?e=K1kXu0)
+  -   Fase 3.pdf / Informe Final y [Link de Office](https://uvggt-my.sharepoint.com/:w:/g/personal/mer201105_uvg_edu_gt/IQDSZsMa1rMASprM6y7TZxgHAcgrkBnM1WvXOnbn-KkbKKY?e=K1kXu0)
   -   **Nota:** Movimos los archivos ahorita para la última entrega, ya estaban agregados al repo en las fechas correspondientes.
  
 - Presentaciones:
