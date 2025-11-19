@@ -1,5 +1,5 @@
 # Proyecto 2. Mosquito Alert
-La ubicación de todos los archivos correspondientes se encuentra a continuación, para el dashboard tenemos un demo en YouTube y también están los comandos para correrlo en el repositorio.
+La ubicación de todos los archivos correspondientes se encuentra a continuación, para el dashboard tenemos un [demo en YouTube](https://youtu.be/oQT28CPXuGI) y también están los comandos para correrlo en el repositorio.
 ## Ubicación de Archivos
 - Análisis Exploratorio e Implementación de Modelos:
   - **Nota:** Realizamos cambios a los modelos entre la Fase 2 y Fase 3 (más que todo entrenamiento más robusto usando el compute de Kaggle), en el subfolder se encuentran todos los Jupyter por temas de documentación. También corrimos los Notebooks dentro de Kaggle, por lo que se pueden ver aquí o dentro de los links de kaggle adjuntados para la Fase 3. Adicionalmente, los notebooks descargados de Kaggle **pueden no cargar dentro de GitHub** por lo cual sugerimos utilizar nbviewer.org y pegar el link del repositorio para ver sus contenidos, o simplemente visitar los links de Kaggle.
@@ -30,7 +30,7 @@ La ubicación de todos los archivos correspondientes se encuentra a continuació
 ---
 
 ## Dashboard
-El Dashboard necesita realizar algunas descargas, por lo que sugiero basarse en la demo principalmente. Tiene que descargar imágenes y los mejores pesos de los  modelos usando Kagglehub.
+El Dashboard necesita realizar algunas descargas, por lo que sugiero basarse en la [demo en YouTube](https://youtu.be/oQT28CPXuGI) principalmente. Tiene que descargar imágenes y los mejores pesos de los  modelos usando Kagglehub.
 
 Clonar el Repositorio
 ```bash
